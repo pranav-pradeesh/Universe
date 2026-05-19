@@ -40,7 +40,7 @@ pub fn start(universe: Universe, big_bang: bool, port: u16) {
 async fn run(universe: Universe, big_bang: bool, port: u16) {
     let (frame_tx, _) = broadcast::channel::<Arc<Vec<u8>>>(8);
     let paused = Arc::new(AtomicBool::new(false));
-    let ticks_per_frame = Arc::new(AtomicUsize::new(5));
+    let ticks_per_frame = Arc::new(AtomicUsize::new(10));
     let (reset_tx, reset_rx) = std::sync::mpsc::channel::<ResetCmd>();
 
     let state = AppState {
@@ -66,7 +66,7 @@ async fn run(universe: Universe, big_bang: bool, port: u16) {
         .expect("bind port");
 
     println!("┌──────────────────────────────────────────────────────┐");
-    println!("│  Reality Engine V0.2 — Universe Visualization        │");
+    println!("│  Reality Engine V0.3 — Universe Visualization        │");
     println!("│  Open in browser: http://localhost:{port:<26}│");
     println!("│  Mode: {}                                  │", if big_bang { "Big Bang 🌌  " } else { "Normal Emergence" });
     println!("└──────────────────────────────────────────────────────┘");
@@ -162,6 +162,8 @@ fn sim_loop(
         }
 
         let tpf = ticks_per_frame.load(Ordering::Relaxed).max(1);
+        let frame_start = std::time::Instant::now();
+
         for _ in 0..tpf {
             universe.tick();
         }
@@ -172,8 +174,17 @@ fn sim_loop(
         // Broadcast to all connected clients (ignore if no subscribers)
         let _ = frame_tx.send(Arc::new(frame));
 
-        // Small sleep to maintain ~60 frame/sec broadcast rate and not pin the CPU
-        std::thread::sleep(std::time::Duration::from_millis(16));
+        // Adaptive sleep: low tpf targets 60fps; high tpf runs as fast as hardware allows.
+        // A small yield even at max speed keeps tokio's async I/O breathing.
+        let elapsed = frame_start.elapsed();
+        if tpf <= 30 {
+            let target = std::time::Duration::from_millis(16);
+            if elapsed < target {
+                std::thread::sleep(target - elapsed);
+            }
+        } else {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
     }
 }
 

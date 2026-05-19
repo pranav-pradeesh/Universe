@@ -92,14 +92,18 @@ cargo build --release
 
 | Control | Action |
 |---------|--------|
-| 🌌 Big Bang | Reset to singularity, camera animates outward |
+| 🌌 Big Bang | Reset to singularity; camera flies outward |
 | ↺ Reset | New random seed, normal emergence |
 | ⏸ Pause / ▶ Resume | Freeze/unfreeze simulation |
-| Speed slider | 1–100 ticks per frame |
+| Time Scale buttons | Planck / Second / Day / Week / Month / Year / Decade / Century / Millennium — sets ticks-per-frame for each render |
+| Custom tpf input | Type any ticks-per-frame value and press Set |
 | Top View | Camera directly overhead |
-| Angle View | Orbiting perspective |
+| Angle View | 45° orbiting perspective |
 | Mouse drag | Orbit camera |
-| Mouse wheel | Zoom |
+| Mouse wheel | Zoom in / out |
+| Explore bar | Natural language query: *"show a domain wall"*, *"where is most energy?"*, *"is there life?"* — camera flies to matching region with description |
+| Universe Chronicle | Rolling narrative log of cosmic events (symmetry breaking, stability milestones, domain wall formation, era transitions) |
+| Esc | Close search result popup |
 
 ---
 
@@ -274,16 +278,33 @@ Future versions will measure this explicitly.
 
 ## Roadmap
 
-### Current: V0.2 — Hamiltonian Field Theory
+### Current: V0.3 — Immersive Visualization + Time Control
+
+**Physics (from V0.2):**
 - ✅ Energy-conserving dynamics (symplectic leapfrog)
 - ✅ Spontaneous symmetry breaking (double-well potential)
 - ✅ Proto-gravity (metric field χ)
 - ✅ Wave speed limit (c = 1/Δt from mathematics)
 - ✅ Domain wall particles (stable topological boundaries)
-- ✅ 3D browser visualization (Three.js)
 - ✅ Big Bang mode (singularity → expansion → symmetry breaking)
 
-### V0.3 — Quantum Vacuum Origin (next)
+**Visualization (V0.3 new):**
+- ✅ Custom GLSL shader with DataTexture — 256×256 mesh driven by 64×64 sim data via GPU bilinear interpolation (smooth, non-blocky surface)
+- ✅ Per-vertex normal computation in vertex shader — correct lighting on terrain features
+- ✅ Cinematic color palette: matter (deep red), antimatter (deep blue), domain walls (warm gold glow)
+- ✅ ACESFilmic tone mapping + UnrealBloom post-processing
+- ✅ 10,000-star field with fog
+- ✅ Universe clock displaying age as "X billion years" in cosmological time units
+- ✅ Cosmic era labels (Genesis → Inflation → Symmetry Breaking → Matter Era → …)
+- ✅ Time scale tiers: Planck / Second / Day / Week / Month / Year / Decade / Century / Millennium
+- ✅ Custom ticks-per-frame text input
+- ✅ Universe Chronicle — rolling narrative log of cosmic events in plain language
+- ✅ Explore / search system — natural language queries fly camera to matching field region with description
+- ✅ Fix: no white-plane flash at startup (DataTexture initialized to neutral grey)
+- ✅ Fix: symmetry-broken flag requires 100-tick minimum — no false positive at tick 0
+- ✅ Adaptive sim loop: low tpf targets 60 fps; high tpf runs at full CPU speed
+
+### V0.4 — Quantum Vacuum Physics (next)
 - [ ] Scale-invariant initial power spectrum (Harrison-Zel'dovich)
 - [ ] Inflation phase (exponential scale factor expansion)
 - [ ] Reheating (inflaton → matter field energy transfer)
@@ -404,7 +425,8 @@ cargo test
 |---------|-------------|
 | V0.1 | Minimal deterministic kernel: reaction-diffusion, 1D ring topology, basic emergence |
 | V0.2 | Hamiltonian field dynamics, spontaneous symmetry breaking, proto-gravity, 2D torus, 3D visualization, Big Bang mode |
-| V0.3 | *(planned)* Quantum vacuum origin, inflation, scale-invariant spectrum, golden ratio measurement |
+| V0.3 | Custom GLSL shader rendering, Universe Chronicle narrative, Explore search system, time-tier controls, universe clock, bug fixes |
+| V0.4 | *(planned)* Quantum vacuum origin, inflation, scale-invariant spectrum, golden ratio measurement |
 
 ---
 

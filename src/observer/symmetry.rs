@@ -57,8 +57,9 @@ impl SymmetryTracker {
             })
             .count();
 
-        // Symmetry is broken when most nodes have committed to a vacuum
-        let newly_broken = committed > 0.6 && !self.symmetry_broken;
+        // Symmetry is broken when most nodes have committed to a vacuum.
+        // Require at least 100 ticks so the first frame never fires false-positive.
+        let newly_broken = committed > 0.6 && !self.symmetry_broken && tick >= 100;
         if newly_broken {
             self.symmetry_broken = true;
             self.breaking_tick = Some(tick);

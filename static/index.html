@@ -1,487 +1,901 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reality Engine V0.2 — The Universe</title>
+<meta charset="utf-8">
+<title>Reality Engine — Deterministic Emergent Universe</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#000;color:#e8eeff;font-family:'Courier New',monospace;overflow:hidden}
-canvas{display:block}
-#ui{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none}
+body{background:#000;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;color:#ccc;user-select:none}
+#c{position:fixed;inset:0;display:block}
 
-#title{
-  position:fixed;top:16px;left:50%;transform:translateX(-50%);
-  font-size:15px;letter-spacing:5px;text-transform:uppercase;
-  color:rgba(160,200,255,0.85);text-shadow:0 0 30px rgba(80,140,255,0.7);
-  pointer-events:none;white-space:nowrap;
-}
+/* ── Top bar ── */
+#top{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;gap:10px;padding:0 14px;
+  background:linear-gradient(to bottom,rgba(0,0,0,.85),transparent);z-index:10;pointer-events:none}
+#top>*{pointer-events:auto}
+#brand{font-size:16px;font-weight:700;color:#7ab8ff;letter-spacing:.06em;white-space:nowrap}
+#clock{font:13px/1 'Courier New',monospace;color:#ffd700;min-width:220px;text-align:center}
+#tps-display{font:11px/1 'Courier New',monospace;color:#4a4a5a;min-width:120px}
+.top-gap{flex:1}
+.btn{padding:5px 13px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.6);
+  color:#ccc;border-radius:4px;cursor:pointer;font-size:12px;transition:.15s all;white-space:nowrap}
+.btn:hover{background:rgba(60,110,200,.45);border-color:#5af;color:#fff}
+.btn.active{background:rgba(60,110,200,.6);border-color:#5af;color:#fff}
+.btn.danger:hover{background:rgba(180,50,20,.5);border-color:#f84;color:#f84}
 
-#narrative{
-  position:fixed;top:60px;left:16px;width:300px;
-  background:rgba(2,4,20,0.82);border:1px solid rgba(80,120,255,0.25);
-  border-radius:10px;padding:14px;pointer-events:none;
-}
-.stage{font-size:11px;letter-spacing:2px;color:#88aaff;margin-bottom:6px;text-transform:uppercase}
-.desc{font-size:11px;line-height:1.65;color:rgba(200,215,255,0.7)}
+/* ── Left panel ── */
+#left{position:fixed;left:0;top:48px;bottom:128px;width:210px;padding:10px 12px;
+  background:linear-gradient(to right,rgba(0,0,0,.82),transparent);z-index:10;overflow-y:auto}
+.sec-title{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#555;margin:12px 0 6px}
+.sec-title:first-child{margin-top:0}
+.tier-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px}
+.tier-btn{font-size:11px;padding:4px 6px}
+.custom-row{display:flex;gap:4px;margin-bottom:4px}
+.custom-row input{flex:1;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);
+  color:#ddd;padding:4px 7px;border-radius:4px;font-size:11px;min-width:0}
+.custom-row input:focus{outline:none;border-color:#5af}
+.stat-row{display:flex;justify-content:space-between;margin:3px 0;font-size:11px}
+.sl{color:#666}.sv{color:#9cf;font-family:monospace;font-size:11px}
+.bar-track{height:3px;background:rgba(255,255,255,.07);border-radius:2px;margin:2px 0 7px}
+.bar-fill{height:100%;border-radius:2px;transition:width .4s;background:#4af}
+.bar-warm{background:#f84}.bar-hot{background:#f44}
 
-#stats{
-  position:fixed;top:60px;right:16px;width:250px;
-  background:rgba(2,4,20,0.82);border:1px solid rgba(80,120,255,0.25);
-  border-radius:10px;padding:14px;font-size:11px;
-}
-.row{display:flex;justify-content:space-between;padding:2px 0}
-.lbl{color:rgba(130,160,255,0.7)}
-.val{color:#ddeeff}
-.val.gold{color:#ffd700;text-shadow:0 0 8px rgba(255,200,0,0.5)}
-.val.red{color:#ff6666}
-.val.blue{color:#6699ff}
-.sep{border-top:1px solid rgba(80,120,255,0.15);margin:6px 0}
+/* ── Right panel ── */
+#right{position:fixed;right:0;top:48px;bottom:128px;width:210px;padding:10px 12px;
+  background:linear-gradient(to left,rgba(0,0,0,.82),transparent);z-index:10;overflow-y:auto}
 
-#legend{
-  position:fixed;bottom:80px;left:16px;
-  background:rgba(2,4,20,0.82);border:1px solid rgba(80,120,255,0.25);
-  border-radius:10px;padding:12px;font-size:10px;
-}
-.leg{display:flex;align-items:center;margin:3px 0}
-.swatch{width:36px;height:10px;border-radius:2px;margin-right:8px;flex-shrink:0}
-.leg-lbl{color:rgba(180,200,255,0.65)}
+/* ── Narrative ── */
+#narr-wrap{position:fixed;bottom:0;left:210px;right:210px;z-index:10;
+  background:linear-gradient(to top,rgba(0,0,0,.92) 65%,transparent)}
+#narr-head{padding:6px 14px 2px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;
+  color:#444;display:flex;align-items:center;gap:8px}
+#narr-clear{font-size:10px;padding:2px 8px;margin-left:auto}
+#narr-log{height:100px;overflow-y:auto;padding:2px 14px 8px;
+  display:flex;flex-direction:column-reverse;gap:1px;scrollbar-width:thin;scrollbar-color:#333 transparent}
+.ne{padding:2px 0;font-size:12px;line-height:1.5;border-bottom:1px solid rgba(255,255,255,.04)}
+.ne.major{color:#ffd700}.ne.info{color:#7acfff}.ne.minor{color:#777}.ne.event{color:#9dffb8}
 
-#controls{
-  position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
-  display:flex;gap:10px;align-items:center;pointer-events:all;
-}
-.btn{
-  background:rgba(10,20,60,0.85);border:1px solid rgba(80,130,255,0.4);
-  color:#c8d8ff;padding:9px 18px;border-radius:7px;cursor:pointer;
-  font-family:'Courier New',monospace;font-size:12px;letter-spacing:1px;
-  transition:all 0.2s;
-}
-.btn:hover{background:rgba(30,60,140,0.9);border-color:rgba(140,190,255,0.7);box-shadow:0 0 18px rgba(80,140,255,0.35)}
-.btn.danger{border-color:rgba(255,120,80,0.5);color:#ffb899}
-.btn.danger:hover{background:rgba(80,20,10,0.9);border-color:rgba(255,120,80,0.9)}
+/* ── Search ── */
+#search-bar{position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:20;
+  display:flex;gap:6px;width:520px;max-width:90vw}
+#si{flex:1;background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.18);
+  color:#ddd;padding:7px 14px;border-radius:20px;font-size:13px;backdrop-filter:blur(4px)}
+#si:focus{outline:none;border-color:#5af}
+#si::placeholder{color:#3a3a4a}
 
-#speed-box{
-  background:rgba(10,20,60,0.85);border:1px solid rgba(80,130,255,0.4);
-  border-radius:7px;padding:8px 12px;display:flex;align-items:center;gap:8px;
-  pointer-events:all;
-}
-#speed-box label{font-size:10px;color:rgba(140,170,255,0.7);letter-spacing:1px}
-#speedRange{width:100px;cursor:pointer;accent-color:#5588ff}
-#speedVal{font-size:11px;color:#aaccff;min-width:40px}
+/* ── Search result popup ── */
+#sr-popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:rgba(3,5,18,.96);border:1px solid rgba(80,140,255,.35);border-radius:10px;
+  padding:22px 26px;max-width:440px;width:90%;z-index:30;display:none;
+  box-shadow:0 0 50px rgba(60,100,255,.2)}
+#sr-title{font-size:16px;font-weight:700;color:#7ab8ff;margin-bottom:10px}
+#sr-body{font-size:13px;line-height:1.7;color:#bbb}
+#sr-coords{font-size:11px;color:#444;margin-top:8px;font-family:monospace}
+#sr-close{position:absolute;top:10px;right:14px;background:none;border:none;color:#555;
+  font-size:22px;cursor:pointer;line-height:1}
+#sr-close:hover{color:#eee}
 
-#alert{
-  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-  background:rgba(0,10,40,0.95);border:2px solid rgba(255,210,0,0.7);
-  border-radius:14px;padding:22px 34px;text-align:center;
-  font-size:15px;color:#ffd700;letter-spacing:2px;
-  text-shadow:0 0 20px rgba(255,200,0,0.8);
-  display:none;pointer-events:none;z-index:200;
-  animation:glow 2s ease-in-out infinite;
-}
-@keyframes glow{
-  0%,100%{box-shadow:0 0 20px rgba(255,200,0,0.3)}
-  50%{box-shadow:0 0 50px rgba(255,200,0,0.7)}
-}
-
-#status{position:fixed;bottom:62px;right:16px;font-size:10px;color:rgba(80,120,80,0.7)}
+/* ── Alert banner ── */
+#alert{position:fixed;top:58px;left:50%;transform:translateX(-50%);padding:8px 22px;
+  border-radius:6px;z-index:25;display:none;text-align:center;
+  background:rgba(255,200,50,.1);border:1px solid rgba(255,200,50,.35);
+  color:#ffd700;font-size:13px;animation:fadeIn .5s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-50%) translateY(-6px)}to{opacity:1;transform:translateX(-50%)}}
 </style>
 </head>
 <body>
+<canvas id="c"></canvas>
 
-<div id="ui">
-  <div id="title">Reality Engine V0.2 &nbsp;·&nbsp; Emergent Universe</div>
-
-  <div id="narrative">
-    <div class="stage" id="stage-label">Initializing...</div>
-    <div class="desc" id="stage-desc">Connecting to simulation...</div>
-  </div>
-
-  <div id="stats">
-    <div class="row"><span class="lbl">Tick</span><span class="val" id="s-tick">—</span></div>
-    <div class="row"><span class="lbl">Speed</span><span class="val" id="s-speed">—</span></div>
-    <div class="sep"></div>
-    <div class="row"><span class="lbl">Total Energy</span><span class="val" id="s-energy">—</span></div>
-    <div class="row"><span class="lbl">Kinetic %</span><span class="val" id="s-ke">—</span></div>
-    <div class="row"><span class="lbl">Energy Var</span><span class="val" id="s-evar">—</span></div>
-    <div class="sep"></div>
-    <div class="row"><span class="lbl">+Vacuum</span><span class="val red" id="s-plus">—</span></div>
-    <div class="row"><span class="lbl">−Vacuum</span><span class="val blue" id="s-minus">—</span></div>
-    <div class="row"><span class="lbl">Domain Walls</span><span class="val" id="s-walls">—</span></div>
-    <div class="row"><span class="lbl">Symmetry</span><span class="val gold" id="s-sym">intact</span></div>
-    <div class="sep"></div>
-    <div class="row"><span class="lbl">Macro Regions</span><span class="val" id="s-regions">—</span></div>
-    <div class="row"><span class="lbl">Largest</span><span class="val" id="s-largest">—</span></div>
-    <div class="row"><span class="lbl">Max Stability</span><span class="val" id="s-stab">—</span></div>
-  </div>
-
-  <div id="legend">
-    <div class="leg"><div class="swatch" style="background:linear-gradient(to right,#cc2200,#ff6633)"></div><span class="leg-lbl">+vacuum (ψ≈+1)</span></div>
-    <div class="leg"><div class="swatch" style="background:#ffffff"></div><span class="leg-lbl">domain wall (ψ≈0) · particles</span></div>
-    <div class="leg"><div class="swatch" style="background:linear-gradient(to right,#3355ff,#001166)"></div><span class="leg-lbl">−vacuum (ψ≈−1)</span></div>
-    <div class="leg"><div class="swatch" style="background:linear-gradient(to right,#ffee44,#ffaa00)"></div><span class="leg-lbl">high χ — curved geometry</span></div>
-  </div>
-
-  <div id="controls">
-    <button class="btn danger" id="btnBigBang">🌌 Big Bang</button>
-    <button class="btn" id="btnReset">↺ Reset</button>
-    <button class="btn" id="btnPause">⏸ Pause</button>
-    <div id="speed-box">
-      <label>SPEED</label>
-      <input type="range" id="speedRange" min="1" max="100" value="5">
-      <span id="speedVal">5 t/f</span>
-    </div>
-    <button class="btn" id="btnTop">Top View</button>
-    <button class="btn" id="btnAngle">Angle View</button>
-  </div>
-
-  <div id="alert"></div>
-  <div id="status">Connecting...</div>
+<!-- Top bar -->
+<div id="top">
+  <div id="brand">⬡ REALITY ENGINE</div>
+  <div class="top-gap"></div>
+  <div id="clock">Age: initializing…</div>
+  <div class="top-gap"></div>
+  <div id="tps-display"></div>
+  <button class="btn danger" id="bb-btn">🌌 Big Bang</button>
+  <button class="btn" id="reset-btn">↺ Reset</button>
+  <button class="btn" id="pause-btn">⏸ Pause</button>
 </div>
+
+<!-- Left panel -->
+<div id="left">
+  <div class="sec-title">Time Scale</div>
+  <div class="tier-grid">
+    <button class="btn tier-btn" data-tpf="1">Planck</button>
+    <button class="btn tier-btn" data-tpf="5">Second</button>
+    <button class="btn tier-btn" data-tpf="15">Day</button>
+    <button class="btn tier-btn active" data-tpf="60">Week</button>
+    <button class="btn tier-btn" data-tpf="250">Month</button>
+    <button class="btn tier-btn" data-tpf="1000">Year</button>
+    <button class="btn tier-btn" data-tpf="5000">Decade</button>
+    <button class="btn tier-btn" data-tpf="25000">Century</button>
+    <button class="btn tier-btn" data-tpf="100000">Millennium</button>
+  </div>
+  <div class="custom-row">
+    <input id="custom-tpf" type="number" min="1" max="500000" placeholder="Custom tpf">
+    <button class="btn tier-btn" id="custom-set">Set</button>
+  </div>
+
+  <div class="sec-title">View</div>
+  <div style="display:flex;gap:4px;margin-bottom:8px">
+    <button class="btn" id="view-top" style="flex:1;font-size:11px">Top</button>
+    <button class="btn" id="view-angle" style="flex:1;font-size:11px">Angle</button>
+  </div>
+
+  <div class="sec-title">Field Stats</div>
+  <div class="stat-row"><span class="sl">ψ entropy</span><span class="sv" id="s-ent">—</span></div>
+  <div class="stat-row"><span class="sl">total energy</span><span class="sv" id="s-e">—</span></div>
+  <div class="stat-row"><span class="sl">kinetic frac.</span><span class="sv" id="s-ke">—</span></div>
+  <div class="bar-track"><div class="bar-fill" id="bar-ke" style="width:0%"></div></div>
+  <div class="stat-row"><span class="sl">energy σ²</span><span class="sv" id="s-evar">—</span></div>
+</div>
+
+<!-- Right panel -->
+<div id="right">
+  <div class="sec-title">Emergence</div>
+  <div class="stat-row"><span class="sl">symmetry</span><span class="sv" id="s-sym">unbroken</span></div>
+  <div class="stat-row"><span class="sl">+ matter</span><span class="sv" id="s-plus">—</span></div>
+  <div class="bar-track"><div class="bar-fill" id="bar-plus" style="width:0%;background:#e84322"></div></div>
+  <div class="stat-row"><span class="sl">− antimatter</span><span class="sv" id="s-minus">—</span></div>
+  <div class="bar-track"><div class="bar-fill" id="bar-minus" style="width:0%;background:#2255e8"></div></div>
+  <div class="stat-row"><span class="sl">neutral</span><span class="sv" id="s-neutral">—</span></div>
+  <div class="stat-row"><span class="sl">domain walls</span><span class="sv" id="s-dw">—</span></div>
+  <div class="stat-row"><span class="sl">max stability</span><span class="sv" id="s-stab">—</span></div>
+  <div class="stat-row"><span class="sl">tick</span><span class="sv" id="s-tick">—</span></div>
+
+  <div class="sec-title">Legend</div>
+  <div style="display:flex;flex-direction:column;gap:5px;font-size:11px;color:#666">
+    <div style="display:flex;align-items:center;gap:7px">
+      <div style="width:10px;height:10px;border-radius:50%;background:#e84322;flex-shrink:0"></div>
+      Positive vacuum (matter)
+    </div>
+    <div style="display:flex;align-items:center;gap:7px">
+      <div style="width:10px;height:10px;border-radius:50%;background:#2245e8;flex-shrink:0"></div>
+      Negative vacuum (antimatter)
+    </div>
+    <div style="display:flex;align-items:center;gap:7px">
+      <div style="width:10px;height:10px;border-radius:50%;background:#ffd28a;flex-shrink:0"></div>
+      Domain wall (boundary)
+    </div>
+    <div style="display:flex;align-items:center;gap:7px">
+      <div style="width:10px;height:10px;border-radius:50%;background:#ffffff;flex-shrink:0"></div>
+      High curvature (χ)
+    </div>
+  </div>
+</div>
+
+<!-- Narrative log -->
+<div id="narr-wrap">
+  <div id="narr-head">
+    <span>Universe Chronicle</span>
+    <button class="btn" id="narr-clear" style="font-size:10px;padding:2px 8px;margin-left:auto">Clear</button>
+  </div>
+  <div id="narr-log"></div>
+</div>
+
+<!-- Search bar -->
+<div id="search-bar">
+  <input id="si" type="text"
+    placeholder="Explore: 'show a domain wall' · 'where is most energy?' · 'is there life?'">
+  <button class="btn" id="search-btn">Explore</button>
+</div>
+
+<!-- Search result popup -->
+<div id="sr-popup">
+  <button id="sr-close">×</button>
+  <div id="sr-title"></div>
+  <div id="sr-body"></div>
+  <div id="sr-coords"></div>
+</div>
+
+<!-- Alert -->
+<div id="alert"></div>
 
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
   }
 }
 </script>
-
 <script type="module">
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { OrbitControls }   from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer }  from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-// ── Scene Setup ──────────────────────────────────────────────────────────────
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000008);
-scene.fog = new THREE.FogExp2(0x000008, 0.006);
+// ────────────────────────────────────────────────────────────
+//  Constants
+// ────────────────────────────────────────────────────────────
+const HEIGHT_SCALE    = 7.0;
+const PLANE_SIZE      = 64;
+const YEARS_PER_TICK  = 1_000_000; // 1 million universe-years per sim tick
 
-const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 2000);
-camera.position.set(0, 55, 70);
+// ────────────────────────────────────────────────────────────
+//  Renderer + scene
+// ────────────────────────────────────────────────────────────
+const canvas   = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping         = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000005);
+scene.fog = new THREE.FogExp2(0x000008, 0.005);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 2000);
+camera.position.set(0, 55, 55);
 camera.lookAt(0, 0, 0);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2;
-document.body.insertBefore(renderer.domElement, document.body.firstChild);
-
-// Orbit controls
-const controls = new OrbitControls(camera, renderer.domElement);
+const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.dampingFactor = 0.06;
-controls.minDistance = 10;
-controls.maxDistance = 300;
+controls.minDistance   = 8;
+controls.maxDistance   = 450;
 
-// ── Post-processing: Bloom ───────────────────────────────────────────────────
+// ── Post-processing ──
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(
-  new THREE.Vector2(innerWidth, innerHeight),
-  0.8,   // strength
-  0.4,   // radius
-  0.75   // threshold
-);
+  new THREE.Vector2(window.innerWidth, window.innerHeight), 0.85, 0.5, 0.7);
 composer.addPass(bloom);
 
-// ── Starfield ────────────────────────────────────────────────────────────────
-{
-  const starGeo = new THREE.BufferGeometry();
-  const starCount = 3000;
-  const pos = new Float32Array(starCount * 3);
-  for (let i = 0; i < starCount * 3; i++) pos[i] = (Math.random() - 0.5) * 800;
-  starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const starMat = new THREE.PointsMaterial({ color: 0x8899cc, size: 0.3, transparent: true, opacity: 0.6 });
-  scene.add(new THREE.Points(starGeo, starMat));
-}
-
-// ── Lighting ─────────────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0x112233, 2.5));
-const sunLight = new THREE.DirectionalLight(0xffffff, 3.5);
-sunLight.position.set(40, 80, 40);
+// ── Lighting ──
+scene.add(new THREE.AmbientLight(0x080c1a, 1.0));
+const sunLight = new THREE.DirectionalLight(0xfff5e0, 1.5);
+sunLight.position.set(30, 60, 40);
 scene.add(sunLight);
-const rimLight = new THREE.DirectionalLight(0x3355ff, 1.5);
-rimLight.position.set(-40, -20, -40);
-scene.add(rimLight);
+const fillLight = new THREE.DirectionalLight(0x0025a0, 0.4);
+fillLight.position.set(-30, 20, -40);
+scene.add(fillLight);
 
-// ── Field Surface ────────────────────────────────────────────────────────────
-let gridW = 64, gridH = 64;
-let geometry = new THREE.PlaneGeometry(64, 64, gridW - 1, gridH - 1);
-const vertCount = gridW * gridH;
+// ── Stars ──
+{
+  const pos = new Float32Array(10000 * 3);
+  for (let i = 0; i < 10000; i++) {
+    const r     = 500 + Math.random() * 600;
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = Math.acos(2 * Math.random() - 1);
+    pos[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+    pos[i*3+1] = r * Math.cos(phi);
+    pos[i*3+2] = r * Math.sin(phi) * Math.sin(theta);
+  }
+  const sg = new THREE.BufferGeometry();
+  sg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(sg,
+    new THREE.PointsMaterial({ color:0xffffff, size:0.55, sizeAttenuation:true,
+      transparent:true, opacity:0.65 })));
+}
 
-// Vertex colors
-const colorArr = new Float32Array(vertCount * 3).fill(0.5);
-geometry.setAttribute('color', new THREE.BufferAttribute(colorArr, 3));
+// ────────────────────────────────────────────────────────────
+//  Field surface — custom shader + DataTexture
+//  64×64 simulation data drives a 256×256-segment mesh via
+//  GPU bilinear interpolation → smooth, high-quality surface.
+// ────────────────────────────────────────────────────────────
+let W = 64, H = 64;
 
-const material = new THREE.MeshPhongMaterial({
-  vertexColors: true,
+const mkTex = (data, w, h) => {
+  const t = new THREE.DataTexture(data, w, h, THREE.RedFormat, THREE.UnsignedByteType);
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearFilter;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.needsUpdate = true;
+  return t;
+};
+
+// Start at psi=0 (byte 128) → neutral gold, no white flash
+let psiTex = mkTex(new Uint8Array(W * H).fill(128), W, H);
+let chiTex = mkTex(new Uint8Array(W * H).fill(0),   W, H);
+
+const VERT = /* glsl */`
+  uniform sampler2D psiMap;
+  uniform sampler2D chiMap;
+  uniform float     heightScale;
+  uniform vec2      texSize;
+
+  varying float vPsi;
+  varying float vChi;
+  varying vec3  vWN;       // world normal
+  varying vec3  vWPos;     // world position
+  varying vec2  vUv;
+
+  void main() {
+    vUv = uv;
+    float raw = texture2D(psiMap, uv).r;
+    vPsi = raw * 2.0 - 1.0;
+    vChi = texture2D(chiMap, uv).r;
+
+    // Displace along local Z (plane faces +Z; after rotation X, this is world Y)
+    vec3 p = position;
+    p.z += vPsi * heightScale;
+
+    // Central-difference normal (local space)
+    vec2 d  = 1.0 / texSize;
+    float hL = (texture2D(psiMap, uv + vec2(-d.x, 0.0)).r * 2.0 - 1.0) * heightScale;
+    float hR = (texture2D(psiMap, uv + vec2( d.x, 0.0)).r * 2.0 - 1.0) * heightScale;
+    float hD = (texture2D(psiMap, uv + vec2(0.0, -d.y)).r * 2.0 - 1.0) * heightScale;
+    float hU = (texture2D(psiMap, uv + vec2(0.0,  d.y)).r * 2.0 - 1.0) * heightScale;
+    vec3 tan  = normalize(vec3(2.0, 0.0, hR - hL));
+    vec3 btan = normalize(vec3(0.0, 2.0, hU - hD));
+    vec3 ln   = normalize(cross(tan, btan));
+    vWN   = normalize((modelMatrix * vec4(ln, 0.0)).xyz);
+    vWPos = (modelMatrix * vec4(p, 1.0)).xyz;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+  }
+`;
+
+const FRAG = /* glsl */`
+  uniform vec3 lightDir;
+  uniform vec3 lightColor;
+  uniform vec3 fillDir;
+  uniform vec3 ambColor;
+  uniform vec3 camPos;
+
+  varying float vPsi;
+  varying float vChi;
+  varying vec3  vWN;
+  varying vec3  vWPos;
+  varying vec2  vUv;
+
+  vec3 fieldColor(float psi) {
+    // +1 = deep red-orange (matter)
+    //  0 = warm gold (domain wall)
+    // -1 = deep blue (antimatter)
+    vec3 pos  = vec3(0.92, 0.20, 0.04);
+    vec3 wall = vec3(1.00, 0.87, 0.52);
+    vec3 neg  = vec3(0.05, 0.18, 0.92);
+    if (psi >= 0.0) return mix(wall, pos, psi);
+    return mix(wall, neg, -psi);
+  }
+
+  void main() {
+    vec3 base = fieldColor(vPsi);
+    vec3 n    = normalize(vWN);
+    vec3 vd   = normalize(camPos - vWPos);
+
+    float d1 = max(dot(n, normalize(lightDir)), 0.0);
+    float d2 = max(dot(n, normalize(fillDir)),  0.0) * 0.30;
+
+    // Specular
+    vec3  h    = normalize(normalize(lightDir) + vd);
+    float spec = pow(max(dot(n, h), 0.0), 56.0);
+
+    // Domain-wall edge glow (psi near 0)
+    float wallGlow = (1.0 - smoothstep(0.0, 0.22, abs(vPsi))) * 0.6;
+
+    // χ brightness (high local curvature = brighter)
+    float cb = 0.7 + vChi * 0.9;
+
+    vec3 col  = base * (ambColor + lightColor * d1 * cb + vec3(0.0,0.1,0.35) * d2);
+    col      += vec3(0.75, 0.88, 1.0) * spec * 0.55;
+    col      += vec3(1.0, 0.95, 0.55) * wallGlow;
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`;
+
+const fieldMat = new THREE.ShaderMaterial({
+  uniforms: {
+    psiMap:     { value: psiTex },
+    chiMap:     { value: chiTex },
+    heightScale:{ value: HEIGHT_SCALE },
+    texSize:    { value: new THREE.Vector2(W, H) },
+    lightDir:   { value: new THREE.Vector3(0.5, 1.0, 0.6).normalize() },
+    lightColor: { value: new THREE.Color(0xfff5e0) },
+    fillDir:    { value: new THREE.Vector3(-0.5, 0.4, -0.6).normalize() },
+    ambColor:   { value: new THREE.Color(0x090c1c) },
+    camPos:     { value: new THREE.Vector3() },
+  },
+  vertexShader:   VERT,
+  fragmentShader: FRAG,
   side: THREE.DoubleSide,
-  shininess: 60,
-  specular: new THREE.Color(0x224488),
 });
 
-const mesh = new THREE.Mesh(geometry, material);
-mesh.rotation.x = -Math.PI / 2;
-scene.add(mesh);
+// 256-segment plane: smooth interpolation from 64×64 sim data
+const fieldGeo  = new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE, 255, 255);
+fieldGeo.rotateX(-Math.PI / 2);
+const fieldMesh = new THREE.Mesh(fieldGeo, fieldMat);
+scene.add(fieldMesh);
 
-// Wireframe overlay for domain wall edges (subtle)
-const wireMat = new THREE.MeshBasicMaterial({
-  color: 0x223344, wireframe: true, transparent: true, opacity: 0.04
-});
-const wireMesh = new THREE.Mesh(geometry, wireMat);
-wireMesh.rotation.x = -Math.PI / 2;
-wireMesh.position.y = 0.02;
-scene.add(wireMesh);
+// Subtle grid overlay
+const grid = new THREE.GridHelper(PLANE_SIZE, 8, 0x0e0e1e, 0x080810);
+grid.position.y = -0.1;
+scene.add(grid);
 
-// ── Color Mapping ─────────────────────────────────────────────────────────────
-function psiToColor(psiU8, chiU8) {
-  const psi = (psiU8 / 255) * 2 - 1;          // [-1, 1]
-  const chi = (chiU8 / 255) * 2.3 + 0.2;      // [0.2, 2.5]
-  const chiGlow = Math.max(0, (chi - 1.0) / 1.5); // 0→1 extra brightness
+// ────────────────────────────────────────────────────────────
+//  Camera fly-to animation
+// ────────────────────────────────────────────────────────────
+let fly = null;
 
-  let r, g, b;
-  if (psi >= 0) {
-    // white → warm red/orange  (+vacuum)
-    const t = psi;
-    r = 1.0;
-    g = 1.0 - t * 0.85;
-    b = 1.0 - t * 0.95;
-  } else {
-    // white → cool blue  (−vacuum)
-    const t = -psi;
-    r = 1.0 - t * 0.9;
-    g = 1.0 - t * 0.6;
-    b = 1.0;
-  }
-
-  // High chi adds golden glow (curved geometry / high energy)
-  r = Math.min(1, r + chiGlow * 0.4);
-  g = Math.min(1, g + chiGlow * 0.25);
-  b = Math.max(0, b - chiGlow * 0.1);
-
-  return [r, g, b];
+function flyTo(wx, wz, elev, offset) {
+  elev   = elev   === undefined ? 30 : elev;
+  offset = offset === undefined ? 28 : offset;
+  fly = {
+    fc: camera.position.clone(),
+    fl: controls.target.clone(),
+    tc: new THREE.Vector3(wx, elev, wz + offset),
+    tl: new THREE.Vector3(wx, 0, wz),
+    t:  0,
+  };
 }
 
-// ── Frame Update ──────────────────────────────────────────────────────────────
-const HEIGHT_SCALE = 5.0;
+function eio(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
 
-function applyFrame(buf) {
-  const view = new DataView(buf);
-  let off = 0;
-
-  const tick     = Number(view.getBigUint64(off, true)); off += 8;
-  const w        = view.getUint32(off, true); off += 4;
-  const h        = view.getUint32(off, true); off += 4;
-  const n        = w * h;
-
-  const psiBytes   = new Uint8Array(buf, off, n); off += n;
-  const chiBytes   = new Uint8Array(buf, off, n); off += n;
-  const omegaBytes = new Uint8Array(buf, off, n); off += n;
-
-  const energy      = view.getFloat32(off, true); off += 4;
-  const plusFrac    = view.getFloat32(off, true); off += 4;
-  const minusFrac   = view.getFloat32(off, true); off += 4;
-  const neutralFrac = view.getFloat32(off, true); off += 4;
-  const walls       = view.getUint32(off, true); off += 4;
-  const symBroken   = view.getUint8(off) > 0;   off += 1;
-  const maxStab     = view.getUint32(off, true); off += 4;
-  const keFrac      = view.getFloat32(off, true); off += 4;
-  const eVar        = view.getFloat32(off, true); off += 4;
-
-  // Rebuild geometry if grid changed
-  if (w !== gridW || h !== gridH) {
-    gridW = w; gridH = h;
-    geometry.dispose();
-    geometry = new THREE.PlaneGeometry(64, 64, gridW - 1, gridH - 1);
-    const nc = new Float32Array(gridW * gridH * 3).fill(0.5);
-    geometry.setAttribute('color', new THREE.BufferAttribute(nc, 3));
-    mesh.geometry = geometry;
-    wireMesh.geometry = geometry;
-  }
-
-  const positions = geometry.attributes.position;
-  const colors = geometry.attributes.color;
-
-  for (let i = 0; i < n; i++) {
-    const psi = (psiBytes[i] / 255) * 2 - 1;
-    positions.setZ(i, psi * HEIGHT_SCALE);
-    const [r, g, b] = psiToColor(psiBytes[i], chiBytes[i]);
-    colors.setXYZ(i, r, g, b);
-  }
-
-  positions.needsUpdate = true;
-  colors.needsUpdate = true;
-  geometry.computeVertexNormals();
-
-  // Update stats panel
-  document.getElementById('s-tick').textContent    = tick.toLocaleString();
-  document.getElementById('s-energy').textContent  = energy.toFixed(2);
-  document.getElementById('s-ke').textContent      = (keFrac * 100).toFixed(1) + '%';
-  document.getElementById('s-evar').textContent    = eVar.toExponential(2);
-  document.getElementById('s-plus').textContent   = (plusFrac * 100).toFixed(1) + '%';
-  document.getElementById('s-minus').textContent  = (minusFrac * 100).toFixed(1) + '%';
-  document.getElementById('s-walls').textContent  = walls;
-
-  const symEl = document.getElementById('s-sym');
-  if (symBroken && !wasSymBroken) {
-    symEl.textContent = 'BROKEN ✦';
-    showAlert('✦ SPONTANEOUS SYMMETRY BREAKING ✦\nThe universe has chosen its vacuum.\nFirst particles crystallize at domain walls.');
-    wasSymBroken = true;
-  } else if (symBroken) {
-    symEl.textContent = 'broken ✦';
-  }
-
-  updateNarrative(tick, symBroken, plusFrac, minusFrac);
-  updateSpeed(tick);
+function tickFly() {
+  if (!fly) return;
+  fly.t = Math.min(fly.t + 0.022, 1);
+  const e = eio(fly.t);
+  camera.position.lerpVectors(fly.fc, fly.tc, e);
+  controls.target.lerpVectors(fly.fl, fly.tl, e);
+  controls.update();
+  if (fly.t >= 1) fly = null;
 }
 
-// ── Narrative Stages ──────────────────────────────────────────────────────────
-let wasSymBroken = false;
-let lastTick = 0, lastTickTime = performance.now();
-let ticksPerSec = 0;
+// ────────────────────────────────────────────────────────────
+//  Universe clock + era
+// ────────────────────────────────────────────────────────────
+function formatAge(tick) {
+  const yr = tick * YEARS_PER_TICK;
+  if (yr >= 1e12) return `${(yr/1e12).toFixed(2)} trillion yr`;
+  if (yr >= 1e9)  return `${(yr/1e9 ).toFixed(3)} billion yr`;
+  if (yr >= 1e6)  return `${(yr/1e6 ).toFixed(2)} million yr`;
+  if (yr >= 1e3)  return `${Math.round(yr/1e3).toLocaleString()} thousand yr`;
+  return `${Math.round(yr)} yr`;
+}
 
-function updateSpeed(tick) {
-  const now = performance.now();
-  const dt = now - lastTickTime;
-  if (dt > 500) {
-    ticksPerSec = ((tick - lastTick) / dt * 1000).toFixed(0);
-    lastTick = tick; lastTickTime = now;
-    document.getElementById('s-speed').textContent = ticksPerSec + ' t/s';
+function cosmicEra(tick) {
+  if (tick < 50)    return 'Genesis';
+  if (tick < 200)   return 'Inflation';
+  if (tick < 1000)  return 'Symmetry Breaking';
+  if (tick < 5000)  return 'Structure Formation';
+  if (tick < 20000) return 'Matter Era';
+  if (tick < 1e5)   return 'Dark Ages';
+  return 'Stelliferous Era';
+}
+
+// ────────────────────────────────────────────────────────────
+//  Simulation state
+// ────────────────────────────────────────────────────────────
+let currentTick   = 0;
+let currentPsi    = null; // latest Uint8Array
+let currentChi    = null;
+let currentReport = {
+  plusFrac:0, minusFrac:0, symmetryBroken:false, domainWalls:0,
+  maxStability:0, energy:0, kineticFrac:0, energyVariance:0, psiEntropy:0,
+};
+let isPaused  = false;
+let activeTpf = 60;
+
+let lastTickForTps = 0, lastTpsTime = performance.now();
+
+// ────────────────────────────────────────────────────────────
+//  Narrative system
+// ────────────────────────────────────────────────────────────
+const narr = [];
+const MAX_NARR = 80;
+const logEl = document.getElementById('narr-log');
+
+function addNarr(msg, type) {
+  narr.unshift({ msg, type: type || 'minor' });
+  if (narr.length > MAX_NARR) narr.pop();
+  renderNarr();
+}
+
+function renderNarr() {
+  logEl.innerHTML = narr.map(e => `<div class="ne ${e.type}">${e.msg}</div>`).join('');
+}
+
+const NS = {
+  prevTick: -1, prevSym: false, prevDW: 0,
+  prevPlus: 0,  prevMinus: 0,   prevStab: 0,
+  prevKE: 0.5,  milestones: new Set(), era: '',
+};
+
+function updateNarrative(r, tick) {
+  if (tick === NS.prevTick) return;
+  const era = cosmicEra(tick);
+
+  if (NS.prevTick < 0) {
+    addNarr('The universe ignites. Fields hover near zero — the false vacuum, charged but silent.', 'major');
   }
+
+  // Era change
+  if (era !== NS.era && NS.era !== '') {
+    addNarr(`⟳ Epoch: entering the <em>${era}</em>.`, 'info');
+  }
+  NS.era = era;
+
+  // Symmetry breaking
+  if (r.symmetryBroken && !NS.prevSym) {
+    const dom = r.plusFrac > r.minusFrac ? 'positive' : 'negative';
+    const pct = Math.round(Math.max(r.plusFrac, r.minusFrac) * 100);
+    addNarr(`⚡ Symmetry breaks! ${pct}% of space settles into the ${dom} vacuum. The arrow of matter is set.`, 'major');
+    showAlert('⚡ Spontaneous Symmetry Breaking Detected');
+  }
+
+  // Domain wall thresholds
+  for (const thr of [10, 50, 200, 500, 2000]) {
+    if (r.domainWalls >= thr && NS.prevDW < thr && !NS.milestones.has('dw'+thr)) {
+      NS.milestones.add('dw'+thr);
+      addNarr(`Domain wall count crosses ${thr}. Topological boundaries crystallize — the universe's first structures.`, 'info');
+    }
+  }
+
+  // Stability milestones
+  for (const thr of [100, 500, 2000, 10000, 50000]) {
+    if (r.maxStability >= thr && NS.prevStab < thr && !NS.milestones.has('st'+thr)) {
+      NS.milestones.add('st'+thr);
+      addNarr(`A structure survives ${thr.toLocaleString()} epochs unchanged — topological memory crystallised.`, 'event');
+    }
+  }
+
+  // Matter/antimatter asymmetry
+  const asym = Math.abs(r.plusFrac - r.minusFrac);
+  if (asym > 0.28 && Math.abs(NS.prevPlus - NS.prevMinus) <= 0.28 && !NS.milestones.has('asym')) {
+    NS.milestones.add('asym');
+    addNarr(`Matter-antimatter asymmetry: ${Math.round(asym*100)}% imbalance. The universe has a preferred arrow.`, 'info');
+  }
+
+  // Kinetic phase transitions
+  if (r.kineticFrac > 0.62 && NS.prevKE <= 0.62 && !NS.milestones.has('ke-hi')) {
+    NS.milestones.add('ke-hi');
+    addNarr('Kinetic phase: field momentum dominates. The cosmos roils in turbulent motion.', 'minor');
+  }
+  if (r.kineticFrac < 0.32 && NS.prevKE >= 0.32 && !NS.milestones.has('ke-lo')) {
+    NS.milestones.add('ke-lo');
+    addNarr('Fields settle: potential energy dominates. Structure freezes in place.', 'minor');
+  }
+
+  // Periodic cosmic reports
+  const intervals = [100,500,1000,5000,10000,50000,100000,500000];
+  for (const intv of intervals) {
+    if (tick > 0 && tick % intv === 0 && !NS.milestones.has('tick'+tick)) {
+      NS.milestones.add('tick'+tick);
+      const age = formatAge(tick);
+      const status = r.symmetryBroken
+        ? `${r.domainWalls} domain walls · ${Math.round(r.plusFrac*100)}% matter · ${Math.round(r.minusFrac*100)}% antimatter`
+        : `${Math.round((1-r.plusFrac-r.minusFrac)*100)}% neutral (fields still settling)`;
+      addNarr(`[${age}] ${status}`, 'minor');
+      break;
+    }
+  }
+
+  NS.prevTick = tick; NS.prevSym = r.symmetryBroken; NS.prevDW = r.domainWalls;
+  NS.prevPlus = r.plusFrac; NS.prevMinus = r.minusFrac;
+  NS.prevStab = r.maxStability; NS.prevKE = r.kineticFrac;
 }
 
-const STAGES = [
-  { minTick: 0, label: 'Singularity',
-    desc: 'All energy compressed into one mathematical point. Space is flat. Time begins. The universe awaits.' },
-  { minTick: 1, label: 'Inflation',
-    desc: 'Energy wave expands at maximum possible speed c = 1/Δt. This is the speed of light — not hardcoded, it emerges from the mathematics.' },
-  { minTick: 80, label: 'Cooling & Tension',
-    desc: 'The wave front passes. Behind it, the field ψ is perturbed from its unstable zero-state. The double-well potential begins to take over.' },
-  { minTick: 200, label: 'Symmetry Breaking',
-    desc: 'Different regions fall to ψ=+1 or ψ=−1 vacuum. This is the Higgs mechanism — mass and matter emerge from broken symmetry.' },
-  { minTick: 500, label: 'Structure Formation',
-    desc: 'Domain walls between +/− regions stabilize as particle-like boundaries. The metric field χ concentrates around high-energy walls — proto-gravity.' },
-  { minTick: 2000, label: 'Cosmic Equilibrium',
-    desc: 'Stable macro-structures persist. Compression ratio rises as the universe becomes describable by fewer macro-laws. The cosmos self-organizes.' },
-];
-
-function updateNarrative(tick, symBroken, plus, minus) {
-  let stage = STAGES[0];
-  for (const s of STAGES) { if (tick >= s.minTick) stage = s; }
-  document.getElementById('stage-label').textContent = stage.label;
-  document.getElementById('stage-desc').textContent  = stage.desc;
-}
-
-// ── Alert Banner ──────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────
+//  Alert banner
+// ────────────────────────────────────────────────────────────
 let alertTimer = null;
 function showAlert(msg) {
   const el = document.getElementById('alert');
-  el.innerHTML = msg.replace(/\n/g, '<br>');
+  el.textContent = msg;
   el.style.display = 'block';
   clearTimeout(alertTimer);
-  alertTimer = setTimeout(() => { el.style.display = 'none'; }, 5000);
+  alertTimer = setTimeout(() => { el.style.display = 'none'; }, 6000);
 }
 
-// ── Camera Animations ─────────────────────────────────────────────────────────
-let bigBangCam = false, bigBangStart = 0;
-
-function triggerBigBangCamera() {
-  bigBangCam = true;
-  bigBangStart = performance.now();
-  controls.enabled = false;
-  setTimeout(() => { controls.enabled = true; bigBangCam = false; }, 20000);
+// ────────────────────────────────────────────────────────────
+//  Field analysis (from current Uint8 arrays)
+// ────────────────────────────────────────────────────────────
+function psiAt(x, y) {
+  if (!currentPsi || x < 0 || y < 0 || x >= W || y >= H) return 0;
+  return (currentPsi[y * W + x] / 255) * 2 - 1;
+}
+function chiAt(x, y) {
+  if (!currentChi || x < 0 || y < 0 || x >= W || y >= H) return 0;
+  return currentChi[y * W + x] / 255;
 }
 
-function updateCamera() {
-  if (!bigBangCam) return;
-  const t = (performance.now() - bigBangStart) / 1000;
-  const eased = 1 - Math.exp(-t * 0.08);
-  const dist = 15 + eased * 90;
-  const angle = t * 0.04;
-  camera.position.set(Math.sin(angle) * dist * 0.4, dist * 0.7, Math.cos(angle) * dist);
-  camera.lookAt(0, 0, 0);
+function findMax(arr) {
+  let bx = W>>1, by = H>>1, bv = -Infinity;
+  if (!arr) return { x:bx, y:by };
+  for (let i = 0; i < W*H; i++) if (arr[i] > bv) { bv = arr[i]; bx = i%W; by = i/W|0; }
+  return { x:bx, y:by };
+}
+function findMin(arr) {
+  let bx = W>>1, by = H>>1, bv = Infinity;
+  if (!arr) return { x:bx, y:by };
+  for (let i = 0; i < W*H; i++) if (arr[i] < bv) { bv = arr[i]; bx = i%W; by = i/W|0; }
+  return { x:bx, y:by };
+}
+function findDomainWall() {
+  if (!currentPsi) return { x:W>>1, y:H>>1 };
+  for (let y = 1; y < H-1; y++) for (let x = 1; x < W-1; x++) {
+    const p = psiAt(x,y);
+    if (Math.abs(p) < 0.3 && (psiAt(x+1,y)*psiAt(x-1,y) < 0 || psiAt(x,y+1)*psiAt(x,y-1) < 0))
+      return { x, y };
+  }
+  return { x:W>>1, y:H>>1 };
 }
 
-// ── WebSocket ─────────────────────────────────────────────────────────────────
-let ws = null;
-let paused = false;
+function gridToWorld(gx, gy) {
+  return { wx:(gx/W - 0.5)*PLANE_SIZE, wz:(gy/H - 0.5)*PLANE_SIZE };
+}
+
+function entityName(gx, gy) {
+  const s = ((gx * 73856093) ^ (gy * 19349663)) >>> 0;
+  const adj  = ['Ancient','Eternal','Radiant','Turbulent','Frozen','Burning','Silent','Shifting'];
+  const noun = ['Nexus','Boundary','Confluence','Vortex','Domain','Rift','Expanse','Core'];
+  return `${adj[s % adj.length]} ${noun[(s>>4) % noun.length]}`;
+}
+
+// ────────────────────────────────────────────────────────────
+//  Search
+// ────────────────────────────────────────────────────────────
+function handleSearch(query) {
+  const q = query.toLowerCase().trim();
+  let pos, title, body;
+
+  if (q.match(/energy|hot|bright|peak|intense|power|concentrated/)) {
+    pos   = findMax(currentChi);
+    title = 'Peak Energy Region';
+    body  = `The metric field χ is highest at (${pos.x}, ${pos.y}). Energy density has concentrated here most strongly — a proto-gravitational well where waves travel differently. Geometry itself is curved by energy: an echo of General Relativity emerging from pure mathematics.`;
+  } else if (q.match(/cold|quiet|calm|low|empty|void|dark/)) {
+    pos   = findMin(currentChi);
+    title = 'Low-Energy Void';
+    body  = `At (${pos.x}, ${pos.y}) field energy is minimal. If large-scale structure emerges, these regions become the voids between filaments — the universe's empty spaces. Nothing is truly empty: even here the ψ field has settled into one of its two vacua.`;
+  } else if (q.match(/wall|bound|border|edge|particle|interface|barrier/)) {
+    pos   = findDomainWall();
+    title = 'Domain Wall';
+    body  = `A topological boundary at (${pos.x}, ${pos.y}) separates ψ=+1 and ψ=−1 regions. Domain walls are mathematically stable: energy minimisation traps them. They are the universe's first particle-like structures — not designed, not programmed, required.`;
+  } else if (q.match(/matter|positive|\+vacuum|red|warm/)) {
+    pos   = findMax(currentPsi);
+    title = 'Peak Matter Region';
+    body  = `At (${pos.x}, ${pos.y}), ψ is most deeply in the positive vacuum. This is matter in the simulation's terms. The double-well potential has driven this region to commit fully. Wherever ψ=+1 meets ψ=−1, matter and antimatter annihilate into domain-wall energy.`;
+  } else if (q.match(/antimatter|negative|−vacuum|blue|cool/)) {
+    pos   = findMin(currentPsi);
+    title = 'Peak Antimatter Region';
+    body  = `At (${pos.x}, ${pos.y}), ψ=−1 — the negative vacuum. A mirror image of matter in all field properties. Which phase dominates after symmetry breaking depends entirely on the initial fluctuation — a mathematical coin flip.`;
+  } else if (q.match(/center|origin|singularity|zero point|beginning|start/)) {
+    pos   = { x: W>>1, y: H>>1 };
+    title = 'Center of the Universe';
+    body  = `The geometric origin at (${pos.x}, ${pos.y}). In Big Bang mode this is where all energy erupted — a Gaussian kinetic-energy spike driving the wave front that perturbed every field. The echo persists in the χ field gradients radiating outward from this point.`;
+  } else if (q.match(/man|person|human|life|alive|creature|species|organism|who is|anyone/)) {
+    pos   = findMax(currentChi);
+    const name = entityName(pos.x, pos.y);
+    title = `Stable Structure "${name}"`;
+    body  = `No biological entities exist at this stage of cosmic evolution. However, the persistent field configuration at (${pos.x}, ${pos.y}) has been designated "${name}": a durable topological structure surviving ${currentReport.maxStability.toLocaleString()} epochs. These stable patterns are the mathematical precursors of complexity — physics rehearsing permanence before chemistry can begin.`;
+  } else if (q.match(/chaos|turbul|unstable|dynamic|active|boiling/)) {
+    pos   = findDomainWall();
+    title = 'Turbulent Zone';
+    body  = `Near (${pos.x}, ${pos.y}), field boundaries produce maximum topological flux. The ω field drives edge creation and destruction here — the graph topology itself mutates. This is where structure is being contested, not yet settled.`;
+  } else if (q.match(/stable|old|ancient|persist|lasting|structure/)) {
+    pos   = findMax(currentChi);
+    title = 'Most Persistent Structure';
+    body  = `Near (${pos.x}, ${pos.y}), χ=${chiAt(pos.x,pos.y).toFixed(3)} — concentrated local curvature acts as self-reinforcing binding. The configuration here has persisted for ${currentReport.maxStability.toLocaleString()} ticks. High energy density prevents thermal disruption: proto-gravitational self-binding.`;
+  } else if (q.match(/symmetr|higgs|break|vacuum|phase/)) {
+    if (currentReport.symmetryBroken) {
+      pos   = findDomainWall();
+      title = 'Symmetry Breaking Evidence';
+      body  = `The ψ field has broken Z₂ symmetry: ${Math.round(currentReport.plusFrac*100)}% chose ψ=+1, ${Math.round(currentReport.minusFrac*100)}% chose ψ=−1. The domain wall at (${pos.x}, ${pos.y}) is a fossil record of this transition — the moment the universe chose a vacuum from pure mathematics.`;
+    } else {
+      pos   = { x: W>>1, y: H>>1 };
+      title = 'Symmetry: Still Unbroken';
+      body  = `${Math.round((1-currentReport.plusFrac-currentReport.minusFrac)*100)}% of space remains neutral — fields poised near ψ=0. The double-well potential is pulling every node toward ψ=±1. Symmetry breaking is imminent. When it happens, the universe's topology is fixed forever.`;
+    }
+  } else {
+    pos   = { x: W>>1, y: H>>1 };
+    title = 'Universe Status';
+    body  = `Age: ${formatAge(currentTick)} · Era: ${cosmicEra(currentTick)} · ${currentReport.symmetryBroken ? 'Symmetry broken' : 'Pre-symmetry-break'} · ${currentReport.domainWalls} domain walls · Max stability: ${currentReport.maxStability.toLocaleString()} epochs · Energy: ${currentReport.energy.toFixed(3)} · ${Math.round(currentReport.plusFrac*100)}% matter · ${Math.round(currentReport.minusFrac*100)}% antimatter.`;
+  }
+
+  const { wx, wz } = gridToWorld(pos.x, pos.y);
+  flyTo(wx, wz);
+  showSR(title, body, pos.x, pos.y);
+}
+
+function showSR(title, body, gx, gy) {
+  document.getElementById('sr-title').textContent = title;
+  document.getElementById('sr-body').innerHTML    = body;
+  const { wx, wz } = gridToWorld(gx, gy);
+  document.getElementById('sr-coords').textContent =
+    `Grid (${gx}, ${gy})  ·  World (${wx.toFixed(1)}, ${wz.toFixed(1)})`;
+  document.getElementById('sr-popup').style.display = 'block';
+}
+
+// ────────────────────────────────────────────────────────────
+//  Stats UI
+// ────────────────────────────────────────────────────────────
+function updateStats(r, tick) {
+  const $ = id => document.getElementById(id);
+  const pct = v => `${(v*100).toFixed(1)}%`;
+
+  $('clock').textContent = `⏱ ${formatAge(tick)}  ·  ${cosmicEra(tick)}`;
+  $('s-tick').textContent  = tick.toLocaleString();
+  $('s-ent').textContent   = r.psiEntropy.toFixed(3);
+  $('s-e').textContent     = r.energy.toFixed(3);
+  $('s-ke').textContent    = pct(r.kineticFrac);
+  const kpct               = pct(r.kineticFrac);
+  $('bar-ke').style.width  = kpct;
+  const kbar = $('bar-ke');
+  kbar.style.background    = r.kineticFrac > 0.6 ? '#f44' : r.kineticFrac > 0.4 ? '#f84' : '#4af';
+  $('s-evar').textContent  = r.energyVariance.toFixed(5);
+
+  $('s-sym').textContent   = r.symmetryBroken ? '✓ broken' : 'unbroken';
+  $('s-sym').style.color   = r.symmetryBroken ? '#ffd700' : '#777';
+  $('s-plus').textContent  = pct(r.plusFrac);
+  $('bar-plus').style.width= pct(r.plusFrac);
+  $('s-minus').textContent = pct(r.minusFrac);
+  $('bar-minus').style.width = pct(r.minusFrac);
+  $('s-neutral').textContent = pct(Math.max(0, 1 - r.plusFrac - r.minusFrac));
+  $('s-dw').textContent    = r.domainWalls.toLocaleString();
+  $('s-stab').textContent  = r.maxStability.toLocaleString();
+
+  // ticks/sec rolling average
+  const now = performance.now();
+  if (now - lastTpsTime > 600) {
+    const tps = (tick - lastTickForTps) / ((now - lastTpsTime) / 1000);
+    $('tps-display').textContent = `${Math.round(tps).toLocaleString()} sim-yr/s`;
+    lastTickForTps = tick;
+    lastTpsTime    = now;
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+//  WebSocket + binary frame parser
+// ────────────────────────────────────────────────────────────
+let ws;
 
 function connect() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws = new WebSocket(`ws://${location.host}/ws`);
   ws.binaryType = 'arraybuffer';
-
-  ws.onopen = () => {
-    document.getElementById('status').textContent = '● Connected';
-    document.getElementById('status').style.color = 'rgba(80,200,80,0.8)';
-  };
-  ws.onmessage = e => { if (e.data instanceof ArrayBuffer) applyFrame(e.data); };
-  ws.onclose = () => {
-    document.getElementById('status').textContent = '○ Disconnected — retrying...';
-    document.getElementById('status').style.color = 'rgba(200,80,80,0.8)';
-    setTimeout(connect, 2000);
-  };
+  ws.onmessage  = e => parseFrame(e.data);
+  ws.onclose    = () => setTimeout(connect, 1000);
 }
 
-function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+function parseFrame(buf) {
+  if (buf.byteLength < 50) return;
+  const dv   = new DataView(buf);
+  const tick = Number(dv.getBigUint64(0, true));
+  const w    = dv.getUint32(8,  true);
+  const h    = dv.getUint32(12, true);
+  const N    = w * h;
+  if (N === 0 || buf.byteLength < 16 + 3*N + 33) return;
 
-// ── Controls ──────────────────────────────────────────────────────────────────
-document.getElementById('btnBigBang').onclick = () => {
-  wasSymBroken = false;
-  send({ action: 'reset', mode: 'big_bang', seed: 42, energy: 1.5 });
-  triggerBigBangCamera();
-  showAlert('🌌 Big Bang initiated\nSingularity expanding from center...');
-};
+  const psi   = new Uint8Array(buf, 16,       N);
+  const chi   = new Uint8Array(buf, 16 + N,   N);
+  const so    = 16 + 3*N;
 
-document.getElementById('btnReset').onclick = () => {
-  wasSymBroken = false;
-  const seed = Math.floor(Math.random() * 1e9);
-  send({ action: 'reset', mode: 'normal', seed });
-};
+  const energy  = dv.getFloat32(so,    true);
+  const plusF   = dv.getFloat32(so+4,  true);
+  const minusF  = dv.getFloat32(so+8,  true);
+  const dw      = dv.getUint32 (so+16, true);
+  const symBrk  = dv.getUint8  (so+20) === 1;
+  const maxStab = dv.getUint32 (so+21, true);
+  const keFrac  = dv.getFloat32(so+25, true);
+  const eVar    = dv.getFloat32(so+29, true);
 
-document.getElementById('btnPause').onclick = function() {
-  paused = !paused;
-  send({ action: paused ? 'pause' : 'resume' });
-  this.textContent = paused ? '▶ Resume' : '⏸ Pause';
-};
+  // Rebuild textures if grid size changed
+  if (w !== W || h !== H) {
+    W = w; H = h;
+    fieldMat.uniforms.texSize.value.set(W, H);
+    psiTex = mkTex(new Uint8Array(W*H).fill(128), W, H);
+    chiTex = mkTex(new Uint8Array(W*H).fill(0),   W, H);
+    fieldMat.uniforms.psiMap.value = psiTex;
+    fieldMat.uniforms.chiMap.value = chiTex;
+  }
 
-document.getElementById('speedRange').oninput = function() {
-  const v = parseInt(this.value);
-  document.getElementById('speedVal').textContent = v + ' t/f';
+  // Upload to GPU
+  psiTex.image.data.set(psi);
+  chiTex.image.data.set(chi);
+  psiTex.needsUpdate = true;
+  chiTex.needsUpdate = true;
+
+  currentPsi  = psi;
+  currentChi  = chi;
+  currentTick = tick;
+  currentReport = {
+    plusFrac: plusF, minusFrac: minusF,
+    symmetryBroken: symBrk, domainWalls: dw,
+    maxStability: maxStab, energy, kineticFrac: keFrac,
+    energyVariance: eVar, psiEntropy: 0,
+  };
+
+  updateStats(currentReport, tick);
+  updateNarrative(currentReport, tick);
+}
+
+function send(obj) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
+}
+
+function setTpf(v) {
+  activeTpf = v;
   send({ action: 'speed', ticks_per_frame: v });
-};
+  document.querySelectorAll('.tier-btn[data-tpf]').forEach(b =>
+    b.classList.toggle('active', parseInt(b.dataset.tpf) === v));
+}
 
-document.getElementById('btnTop').onclick = () => {
-  camera.position.set(0, 100, 0);
-  camera.lookAt(0, 0, 0);
-};
+// ────────────────────────────────────────────────────────────
+//  UI wiring
+// ────────────────────────────────────────────────────────────
+document.querySelectorAll('.tier-btn[data-tpf]').forEach(btn =>
+  btn.addEventListener('click', () => setTpf(parseInt(btn.dataset.tpf))));
 
-document.getElementById('btnAngle').onclick = () => {
-  camera.position.set(50, 60, 70);
-  camera.lookAt(0, 0, 0);
-};
+document.getElementById('custom-set').addEventListener('click', () => {
+  const v = parseInt(document.getElementById('custom-tpf').value);
+  if (v > 0) setTpf(v);
+});
+document.getElementById('custom-tpf').addEventListener('keydown',
+  e => { if (e.key === 'Enter') document.getElementById('custom-set').click(); });
 
-// ── Resize ────────────────────────────────────────────────────────────────────
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-  composer.setSize(innerWidth, innerHeight);
+document.getElementById('bb-btn').addEventListener('click', () => {
+  send({ action:'reset', mode:'big_bang', seed: Math.floor(Math.random()*1e9), energy:1.5 });
+  Object.assign(NS, { milestones: new Set(), prevTick:-1, era:'',
+    prevSym:false, prevDW:0, prevPlus:0, prevMinus:0, prevStab:0, prevKE:0.5 });
+  addNarr('🌌 Big Bang! A singularity erupts at the center. Energy races toward every horizon at the speed of light.', 'major');
+  flyTo(0, 0, 80, 0);
 });
 
-// ── Render Loop ───────────────────────────────────────────────────────────────
+document.getElementById('reset-btn').addEventListener('click', () => {
+  send({ action:'reset', mode:'normal', seed: Math.floor(Math.random()*1e9) });
+  Object.assign(NS, { milestones: new Set(), prevTick:-1, era:'',
+    prevSym:false, prevDW:0, prevPlus:0, prevMinus:0, prevStab:0, prevKE:0.5 });
+  addNarr('↺ Universe reseeded. New emergence begins from random initial conditions.', 'info');
+});
+
+const pauseBtn = document.getElementById('pause-btn');
+pauseBtn.addEventListener('click', () => {
+  isPaused = !isPaused;
+  send({ action: isPaused ? 'pause' : 'resume' });
+  pauseBtn.textContent = isPaused ? '▶ Resume' : '⏸ Pause';
+  pauseBtn.classList.toggle('active', isPaused);
+});
+
+document.getElementById('view-top').addEventListener('click', () => {
+  fly = { fc:camera.position.clone(), fl:controls.target.clone(),
+    tc:new THREE.Vector3(0,100,0.01), tl:new THREE.Vector3(0,0,0), t:0 };
+});
+document.getElementById('view-angle').addEventListener('click', () => {
+  fly = { fc:camera.position.clone(), fl:controls.target.clone(),
+    tc:new THREE.Vector3(0,55,55), tl:new THREE.Vector3(0,0,0), t:0 };
+});
+
+document.getElementById('search-btn').addEventListener('click', () =>
+  handleSearch(document.getElementById('si').value));
+document.getElementById('si').addEventListener('keydown',
+  e => { if (e.key === 'Enter') document.getElementById('search-btn').click(); });
+document.getElementById('sr-close').addEventListener('click', () =>
+  { document.getElementById('sr-popup').style.display = 'none'; });
+document.getElementById('narr-clear').addEventListener('click', () =>
+  { narr.length = 0; renderNarr(); });
+
+// Close search result on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('sr-popup').style.display = 'none';
+});
+
+// ────────────────────────────────────────────────────────────
+//  Resize
+// ────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ────────────────────────────────────────────────────────────
+//  Render loop
+// ────────────────────────────────────────────────────────────
 function animate() {
   requestAnimationFrame(animate);
+  tickFly();
   controls.update();
-  updateCamera();
+  fieldMat.uniforms.camPos.value.copy(camera.position);
   composer.render();
 }
 
+// Boot
+addNarr('Reality Engine initialized. Connecting to simulation…', 'minor');
 connect();
 animate();
 </script>
