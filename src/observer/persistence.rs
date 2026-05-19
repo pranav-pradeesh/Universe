@@ -1,9 +1,10 @@
 use crate::kernel::node::{NodeId, NodeState};
 
-/// Tracks how long each node's phi-sign has remained stable.
+/// Tracks how long each node's ψ-sign has remained stable (persistence).
+/// High persistence = stable macro-structure (particle-like or domain).
 pub struct PersistenceTracker {
-    prev_phi_sign: Vec<i8>, // -1, 0, +1
-    stability: Vec<u32>,    // ticks since last sign flip
+    prev_psi_sign: Vec<i8>,
+    stability: Vec<u32>,
     pub max_stability: u32,
     pub avg_stability: f32,
 }
@@ -11,7 +12,7 @@ pub struct PersistenceTracker {
 impl PersistenceTracker {
     pub fn new(node_count: usize) -> Self {
         Self {
-            prev_phi_sign: vec![0i8; node_count],
+            prev_psi_sign: vec![0i8; node_count],
             stability: vec![0u32; node_count],
             max_stability: 0,
             avg_stability: 0.0,
@@ -24,18 +25,24 @@ impl PersistenceTracker {
         let mut max = 0u32;
 
         for i in 0..n {
-            let sign = if states[i].phi > 0.05 { 1i8 }
-                       else if states[i].phi < -0.05 { -1i8 }
-                       else { 0i8 };
+            let sign = if states[i].psi > 0.1 {
+                1i8
+            } else if states[i].psi < -0.1 {
+                -1i8
+            } else {
+                0i8
+            };
 
-            if sign == self.prev_phi_sign[i] && sign != 0 {
+            if sign == self.prev_psi_sign[i] && sign != 0 {
                 self.stability[i] = self.stability[i].saturating_add(1);
             } else {
                 self.stability[i] = 0;
             }
-            self.prev_phi_sign[i] = sign;
+            self.prev_psi_sign[i] = sign;
             total += self.stability[i] as u64;
-            if self.stability[i] > max { max = self.stability[i]; }
+            if self.stability[i] > max {
+                max = self.stability[i];
+            }
         }
 
         self.max_stability = max;

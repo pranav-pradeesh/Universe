@@ -1,3 +1,6 @@
+use clap::Parser;
+use std::time::{Duration, Instant};
+
 mod kernel;
 mod topology;
 mod transform;
@@ -5,56 +8,52 @@ mod observer;
 mod visualization;
 mod replay;
 
-use clap::Parser;
-use std::time::{Duration, Instant};
-
 use kernel::universe::Universe;
 use observer::Observer;
 use replay::recorder::Recorder;
-use visualization::ascii::{render_histogram, render_phi_grid, render_report};
+use visualization::ascii::{render_psi_grid, render_chi_grid, render_report, render_histogram};
 
 #[derive(Parser, Debug)]
-#[command(name = "reality-engine", version = "0.1.0")]
-#[command(about = "Deterministic emergent reality substrate — V0.1")]
-#[command(long_about = None)]
+#[command(name = "reality-engine", version = "0.2.0")]
+#[command(about = "Deterministic emergent reality substrate — V0.2 Hamiltonian field dynamics")]
 struct Args {
-    /// Universe seed (determines all initial conditions deterministically)
+    /// Universe seed (deterministic)
     #[arg(short, long, default_value_t = 42)]
     seed: u64,
 
-    /// Number of nodes in the universe
-    #[arg(short, long, default_value_t = 512)]
+    /// Number of nodes (rounded to nearest perfect square)
+    #[arg(short, long, default_value_t = 4096)]
     nodes: usize,
 
-    /// Number of ticks to run (0 = run indefinitely)
+    /// Number of ticks to run (0 = infinite)
     #[arg(short, long, default_value_t = 0)]
     ticks: u64,
 
-    /// Run the observer every N ticks
-    #[arg(short, long, default_value_t = 50)]
+    /// Observe and render every N ticks
+    #[arg(short, long, default_value_t = 100)]
     observe_interval: u64,
 
-    /// Show ASCII phi-field grid visualization
+    /// Show ψ field ASCII grid
     #[arg(long)]
     viz: bool,
 
-    /// Width of the ASCII visualization grid
-    #[arg(long, default_value_t = 32)]
-    grid_width: usize,
+    /// Show χ metric (geometry) grid
+    #[arg(long)]
+    chi_viz: bool,
 
-    /// Show phi histogram alongside the grid
+    /// Show ψ histogram (shows symmetry breaking)
     #[arg(long)]
     histogram: bool,
 
-    /// Enable snapshot recording for replay
+    /// Record snapshots for replay
     #[arg(long)]
     record: bool,
 
-    /// Maximum snapshots to keep in the rolling window
+    /// Max snapshots to keep
     #[arg(long, default_value_t = 10)]
     max_snapshots: usize,
 
-    /// Target ticks per second for rate-limiting (0 = unlimited)
+    /// Target ticks per second (0 = unlimited)
     #[arg(long, default_value_t = 0)]
     tps: u64,
 }
@@ -62,38 +61,31 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    println!("Reality Engine V0.1");
-    println!("══════════════════════════════════════════════════════════");
-    println!(
-        "  Seed:  {}   Nodes: {}   Observe every: {} ticks",
-        args.seed, args.nodes, args.observe_interval
-    );
-    println!(
-        "  TPS limit: {}   Viz: {}   Histogram: {}",
-        if args.tps == 0 {
-            "unlimited".to_string()
-        } else {
-            args.tps.to_string()
-        },
-        args.viz,
-        args.histogram,
-    );
-    println!("══════════════════════════════════════════════════════════\n");
-
     let mut universe = Universe::new(args.seed, args.nodes);
     universe.init();
 
-    let mut observer = Observer::new(args.nodes);
-    let mut recorder = args.record.then(|| Recorder::new(args.max_snapshots));
+    let actual_nodes = universe.node_count;
+    let width = universe.grid_width;
 
-    let tick_period = (args.tps > 0).then(|| Duration::from_micros(1_000_000 / args.tps));
-    let mut last_tick = Instant::now();
+    println!("Reality Engine V0.2 — Hamiltonian Field Dynamics");
+    println!("══════════════════════════════════════════════════════════");
+    println!("Seed: {}  Grid: {}×{}={}  DT: {}",
+        args.seed, width, width, actual_nodes,
+        kernel::constants::DT);
+    println!("Fields: ψ (double-well) + φ (harmonic) + χ (metric) + ω (topology)");
+    println!("══════════════════════════════════════════════════════════\n");
 
-    println!(
-        "Universe initialized with {} nodes and {} edges. Running...\n",
-        args.nodes,
-        universe.graph.edge_count()
-    );
+    let mut observer = Observer::new(actual_nodes);
+    let mut recorder = if args.record { Some(Recorder::new(args.max_snapshots)) } else { None };
+
+    let tick_duration = if args.tps > 0 {
+        Some(Duration::from_micros(1_000_000 / args.tps))
+    } else {
+        None
+    };
+
+    let mut last_tick_time = Instant::now();
+    let start_time = Instant::now();
 
     loop {
         universe.tick();
@@ -112,58 +104,63 @@ fn main() {
                 rec.record(tick, universe.states(), Some(report.clone()));
             }
 
-            // Clear terminal and render
+            let elapsed = start_time.elapsed().as_secs_f64();
+            let tps_actual = tick as f64 / elapsed;
+
             print!("\x1b[2J\x1b[H");
-            println!("Reality Engine V0.1  [Tick {}]", tick);
+            println!("Reality Engine V0.2  [{:.1}s  {:.0} ticks/s]", elapsed, tps_actual);
             println!("──────────────────────────────────────────────────────");
 
             if args.viz {
-                print!("{}", render_phi_grid(universe.states(), args.grid_width));
+                print!("{}", render_psi_grid(universe.states(), width));
             }
-
+            if args.chi_viz {
+                print!("{}", render_chi_grid(universe.states(), width));
+            }
             if args.histogram {
                 print!("{}", render_histogram(universe.states()));
             }
 
             println!("{}", render_report(&report));
-            print_emergence_signals(&report, args.nodes);
+
+            // Emergence signals
+            if report.symmetry_broken && report.breaking_tick == Some(tick) {
+                println!("  *** SPONTANEOUS SYMMETRY BREAKING DETECTED at tick {} ***", tick);
+                println!("      +vacuum: {:.1}%  -vacuum: {:.1}%  domain walls: {}",
+                    report.plus_fraction * 100.0, report.minus_fraction * 100.0,
+                    report.domain_wall_edges);
+            }
+            if report.max_stability > 200 {
+                println!("  [EMERGENCE] Stable macro-structure: {} ticks", report.max_stability);
+            }
+            if report.compression_ratio > 0.7 {
+                println!("  [EMERGENCE] Strong compression: {} macro-regions", report.macro_regions);
+            }
+            if report.domain_wall_edges > 0 && report.domain_wall_edges < actual_nodes / 4 {
+                println!("  [PARTICLE] {} domain-wall segments (particle-like structures)",
+                    report.domain_wall_edges);
+            }
         }
 
-        if let Some(period) = tick_period {
-            let elapsed = last_tick.elapsed();
-            if elapsed < period {
-                std::thread::sleep(period - elapsed);
+        if let Some(dur) = tick_duration {
+            let elapsed = last_tick_time.elapsed();
+            if elapsed < dur {
+                std::thread::sleep(dur - elapsed);
             }
-            last_tick = Instant::now();
+            last_tick_time = Instant::now();
         }
 
         if args.ticks > 0 && tick >= args.ticks {
             println!("\nSimulation complete at tick {}.", tick);
+            let report = observer.observe(
+                tick,
+                universe.states(),
+                &universe.graph,
+                universe.last_mutation.created,
+                universe.last_mutation.destroyed,
+            );
+            println!("{}", render_report(&report));
             break;
         }
-    }
-}
-
-fn print_emergence_signals(report: &observer::ObservationReport, node_count: usize) {
-    if report.max_stability > 100 {
-        println!(
-            "  [EMERGENCE] Stable macro-structures: max persistence = {} ticks",
-            report.max_stability
-        );
-    }
-    if report.compression_ratio > 0.7 {
-        println!(
-            "  [EMERGENCE] High macro-compressibility: ratio = {:.3}",
-            report.compression_ratio
-        );
-    }
-    if report.largest_region > node_count / 4 {
-        println!(
-            "  [EMERGENCE] Large coherent domain: {} / {} nodes",
-            report.largest_region, node_count
-        );
-    }
-    if report.phi_variance < 0.05 && report.phi_entropy < 0.2 {
-        println!("  [WARNING]   Low variance — universe may be collapsing to equilibrium");
     }
 }
