@@ -48,6 +48,12 @@ pub struct ObservationReport {
     pub breaking_tick: Option<u64>,
 }
 
+impl ObservationReport {
+    pub fn neutral_fraction(&self) -> f32 {
+        (1.0 - self.plus_fraction - self.minus_fraction).max(0.0)
+    }
+}
+
 impl Observer {
     pub fn new(node_count: usize) -> Self {
         Self {

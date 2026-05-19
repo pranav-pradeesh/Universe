@@ -102,6 +102,45 @@ impl Universe {
         }
     }
 
+    /// Big Bang initialization: singularity of maximum energy at center, false vacuum everywhere else.
+    /// ψ=0 everywhere (unstable equilibrium) with a Gaussian kinetic-energy spike at the center.
+    /// The wave front will expand at speed c=1/DT, driving spontaneous symmetry breaking in its wake.
+    pub fn init_big_bang(&mut self, energy_scale: f32) {
+        use crate::kernel::constants::{METRIC_MAX, METRIC_MIN};
+        let w = self.grid_width;
+        let n = self.node_count;
+        let cx = w as f32 / 2.0;
+        let cy = w as f32 / 2.0;
+        let sigma = 2.5_f32;
+
+        // Build 2D torus topology (same as init)
+        for row in 0..w {
+            for col in 0..w {
+                let node = (row * w + col) as crate::kernel::node::NodeId;
+                let right = (row * w + (col + 1) % w) as crate::kernel::node::NodeId;
+                let down = (((row + 1) % w) * w + col) as crate::kernel::node::NodeId;
+                self.graph.add_edge(node, right);
+                self.graph.add_edge(node, down);
+            }
+        }
+
+        for i in 0..n {
+            let row = (i / w) as f32;
+            let col = (i % w) as f32;
+            let r_sq = (row - cy).powi(2) + (col - cx).powi(2);
+            let g = (-r_sq / (2.0 * sigma * sigma)).exp();
+
+            self.states[i] = NodeState {
+                psi: g * 0.08 * energy_scale,
+                pi: g * energy_scale,
+                phi: 0.0,
+                rho: 0.0,
+                chi: (1.0 + g * (METRIC_MAX - 1.0) * 0.9).max(METRIC_MIN).min(METRIC_MAX),
+                omega: 0.0,
+            };
+        }
+    }
+
     pub fn states(&self) -> &[NodeState] {
         &self.states
     }

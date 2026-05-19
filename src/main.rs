@@ -7,6 +7,7 @@ mod transform;
 mod observer;
 mod visualization;
 mod replay;
+mod web;
 
 use kernel::universe::Universe;
 use observer::Observer;
@@ -15,9 +16,9 @@ use visualization::ascii::{render_psi_grid, render_chi_grid, render_report, rend
 
 #[derive(Parser, Debug)]
 #[command(name = "reality-engine", version = "0.2.0")]
-#[command(about = "Deterministic emergent reality substrate — V0.2 Hamiltonian field dynamics")]
+#[command(about = "Deterministic emergent reality substrate — V0.2")]
 struct Args {
-    /// Universe seed (deterministic)
+    /// Universe seed
     #[arg(short, long, default_value_t = 42)]
     seed: u64,
 
@@ -25,7 +26,7 @@ struct Args {
     #[arg(short, long, default_value_t = 4096)]
     nodes: usize,
 
-    /// Number of ticks to run (0 = infinite)
+    /// Number of ticks to run (0 = infinite, ignored in --web mode)
     #[arg(short, long, default_value_t = 0)]
     ticks: u64,
 
@@ -37,15 +38,15 @@ struct Args {
     #[arg(long)]
     viz: bool,
 
-    /// Show χ metric (geometry) grid
+    /// Show χ metric grid
     #[arg(long)]
     chi_viz: bool,
 
-    /// Show ψ histogram (shows symmetry breaking)
+    /// Show ψ histogram
     #[arg(long)]
     histogram: bool,
 
-    /// Record snapshots for replay
+    /// Record snapshots
     #[arg(long)]
     record: bool,
 
@@ -53,26 +54,52 @@ struct Args {
     #[arg(long, default_value_t = 10)]
     max_snapshots: usize,
 
-    /// Target ticks per second (0 = unlimited)
+    /// Target ticks per second (0 = unlimited, terminal mode only)
     #[arg(long, default_value_t = 0)]
     tps: u64,
+
+    /// Launch browser visualization server
+    #[arg(long)]
+    web: bool,
+
+    /// Initialize as Big Bang (singularity at center)
+    #[arg(long)]
+    big_bang: bool,
+
+    /// Web server port
+    #[arg(long, default_value_t = 8080)]
+    port: u16,
+
+    /// Big Bang energy scale
+    #[arg(long, default_value_t = 1.5)]
+    energy: f32,
 }
 
 fn main() {
     let args = Args::parse();
 
     let mut universe = Universe::new(args.seed, args.nodes);
-    universe.init();
 
+    if args.big_bang {
+        universe.init_big_bang(args.energy);
+    } else {
+        universe.init();
+    }
+
+    if args.web {
+        web::server::start(universe, args.big_bang, args.port);
+        return;
+    }
+
+    // Terminal mode (unchanged from before)
     let actual_nodes = universe.node_count;
     let width = universe.grid_width;
 
     println!("Reality Engine V0.2 — Hamiltonian Field Dynamics");
     println!("══════════════════════════════════════════════════════════");
-    println!("Seed: {}  Grid: {}×{}={}  DT: {}",
+    println!("Seed: {}  Grid: {}×{}={}  Mode: {}",
         args.seed, width, width, actual_nodes,
-        kernel::constants::DT);
-    println!("Fields: ψ (double-well) + φ (harmonic) + χ (metric) + ω (topology)");
+        if args.big_bang { "Big Bang" } else { "Normal" });
     println!("══════════════════════════════════════════════════════════\n");
 
     let mut observer = Observer::new(actual_nodes);
@@ -111,55 +138,31 @@ fn main() {
             println!("Reality Engine V0.2  [{:.1}s  {:.0} ticks/s]", elapsed, tps_actual);
             println!("──────────────────────────────────────────────────────");
 
-            if args.viz {
-                print!("{}", render_psi_grid(universe.states(), width));
-            }
-            if args.chi_viz {
-                print!("{}", render_chi_grid(universe.states(), width));
-            }
-            if args.histogram {
-                print!("{}", render_histogram(universe.states()));
-            }
+            if args.viz { print!("{}", render_psi_grid(universe.states(), width)); }
+            if args.chi_viz { print!("{}", render_chi_grid(universe.states(), width)); }
+            if args.histogram { print!("{}", render_histogram(universe.states())); }
 
             println!("{}", render_report(&report));
 
-            // Emergence signals
             if report.symmetry_broken && report.breaking_tick == Some(tick) {
-                println!("  *** SPONTANEOUS SYMMETRY BREAKING DETECTED at tick {} ***", tick);
-                println!("      +vacuum: {:.1}%  -vacuum: {:.1}%  domain walls: {}",
-                    report.plus_fraction * 100.0, report.minus_fraction * 100.0,
-                    report.domain_wall_edges);
+                println!("  *** SPONTANEOUS SYMMETRY BREAKING at tick {} ***", tick);
             }
             if report.max_stability > 200 {
-                println!("  [EMERGENCE] Stable macro-structure: {} ticks", report.max_stability);
+                println!("  [EMERGENCE] Stable structure: {} ticks", report.max_stability);
             }
             if report.compression_ratio > 0.7 {
                 println!("  [EMERGENCE] Strong compression: {} macro-regions", report.macro_regions);
-            }
-            if report.domain_wall_edges > 0 && report.domain_wall_edges < actual_nodes / 4 {
-                println!("  [PARTICLE] {} domain-wall segments (particle-like structures)",
-                    report.domain_wall_edges);
             }
         }
 
         if let Some(dur) = tick_duration {
             let elapsed = last_tick_time.elapsed();
-            if elapsed < dur {
-                std::thread::sleep(dur - elapsed);
-            }
+            if elapsed < dur { std::thread::sleep(dur - elapsed); }
             last_tick_time = Instant::now();
         }
 
         if args.ticks > 0 && tick >= args.ticks {
             println!("\nSimulation complete at tick {}.", tick);
-            let report = observer.observe(
-                tick,
-                universe.states(),
-                &universe.graph,
-                universe.last_mutation.created,
-                universe.last_mutation.destroyed,
-            );
-            println!("{}", render_report(&report));
             break;
         }
     }
