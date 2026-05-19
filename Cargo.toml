@@ -1,0 +1,23 @@
+[package]
+name = "reality-engine"
+version = "0.1.0"
+edition = "2021"
+description = "A deterministic emergent reality substrate"
+license = "MIT"
+
+[[bin]]
+name = "reality-engine"
+path = "src/main.rs"
+
+[dependencies]
+rustc-hash = "1.1"
+clap = { version = "4", features = ["derive"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 1
