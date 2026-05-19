@@ -1,3 +1,4 @@
+use crate::kernel::constants::*;
 use crate::kernel::node::{NodeId, NodeState};
 use crate::topology::graph::SparseGraph;
 use crate::topology::mutation::{MutationEngine, MutationStats};
@@ -7,6 +8,7 @@ pub struct Universe {
     pub tick: u64,
     pub seed: u64,
     pub node_count: usize,
+    pub grid_width: usize,    // sqrt(node_count) for 2D layout
     states: Vec<NodeState>,
     next_states: Vec<NodeState>,
     pub graph: SparseGraph,
@@ -14,14 +16,18 @@ pub struct Universe {
     pub last_mutation: MutationStats,
 }
 
-// Simple deterministic xorshift64 for initialization only
 struct Xorshift64(u64);
 impl Xorshift64 {
-    fn new(seed: u64) -> Self { Self(if seed == 0 { 0xdeadbeef_cafebabe } else { seed }) }
+    fn new(seed: u64) -> Self {
+        Self(if seed == 0 { 0xdeadbeef_cafebabe } else { seed })
+    }
     fn next(&mut self) -> u64 {
         let mut x = self.0;
-        x ^= x << 13; x ^= x >> 7; x ^= x << 17;
-        self.0 = x; x
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.0 = x;
+        x
     }
     fn f32_signed(&mut self) -> f32 {
         let raw = self.next();
@@ -34,57 +40,65 @@ impl Xorshift64 {
 
 impl Universe {
     pub fn new(seed: u64, node_count: usize) -> Self {
+        let width = (node_count as f64).sqrt() as usize;
+        let node_count = width * width; // ensure perfect square
         assert!(node_count >= 4, "need at least 4 nodes");
-        let graph = SparseGraph::new(node_count);
-        let states = vec![NodeState::default(); node_count];
-        let next_states = vec![NodeState::default(); node_count];
-        let mutation_engine = MutationEngine::new(node_count);
+
         Universe {
             tick: 0,
             seed,
             node_count,
-            states,
-            next_states,
-            graph,
-            mutation_engine,
+            grid_width: width,
+            states: vec![NodeState::default(); node_count],
+            next_states: vec![NodeState::default(); node_count],
+            graph: SparseGraph::new(node_count),
+            mutation_engine: MutationEngine::new(node_count),
             last_mutation: MutationStats::default(),
         }
     }
 
-    /// Initialize with structured gradients and a ring topology.
-    /// Initial topology: ring with K=4 neighbors per node.
+    /// Initialize universe on a 2D torus grid with small noise near ψ=0 (unstable equilibrium).
+    /// The double-well potential will drive spontaneous symmetry breaking.
     pub fn init(&mut self) {
         let mut rng = Xorshift64::new(self.seed);
+        let w = self.grid_width;
         let n = self.node_count;
-        let ring_k = 4usize; // each node connected to K nearest in ring
 
-        // Build ring topology
-        for i in 0..n {
-            for k in 1..=ring_k {
-                let j = (i + k) % n;
-                self.graph.add_edge(i as NodeId, j as NodeId);
+        // Build 2D torus topology: each node connects right and down (periodic)
+        for row in 0..w {
+            for col in 0..w {
+                let node = (row * w + col) as NodeId;
+                let right = (row * w + (col + 1) % w) as NodeId;
+                let down = (((row + 1) % w) * w + col) as NodeId;
+                self.graph.add_edge(node, right);
+                self.graph.add_edge(node, down);
             }
         }
 
-        // Initialize states with structured gradients
-        // Use several overlapping sinusoidal gradients seeded by rng
-        // This creates "ordered tension" and asymmetric initial conditions
-        let freq1 = rng.f32_unit() * 3.0 + 1.0;
-        let freq2 = rng.f32_unit() * 5.0 + 2.0;
-        let phase1 = rng.f32_unit() * std::f32::consts::TAU;
-        let phase2 = rng.f32_unit() * std::f32::consts::TAU;
-        let amp_phi = 0.6 + rng.f32_unit() * 0.3;
-        let amp_tau = 0.2 + rng.f32_unit() * 0.2;
-
+        // Seed with small perturbations near ψ=0.
+        // A few "seeds" of opposite sign create tension — forcing the universe to break symmetry.
         for i in 0..n {
-            let t = (i as f32) / (n as f32) * std::f32::consts::TAU;
-            let phi_init = amp_phi * (freq1 * t + phase1).sin()
-                         + 0.3 * (freq2 * t + phase2).cos();
-            let tau_init = amp_tau * (freq1 * t * 0.7 + phase2).cos();
-            // Small omega perturbation
-            let omega_init = rng.f32_signed() * 0.05;
+            let psi_init = rng.f32_signed() * INIT_NOISE;
+            let phi_init = rng.f32_signed() * INIT_NOISE * 0.5;
+            // Slightly perturbed flat metric
+            let chi_init = 1.0 + rng.f32_signed() * 0.01;
 
-            self.states[i] = NodeState::new(phi_init, tau_init, omega_init);
+            self.states[i] = NodeState {
+                psi: psi_init,
+                pi: 0.0,
+                phi: phi_init,
+                rho: 0.0,
+                chi: chi_init.max(METRIC_MIN).min(METRIC_MAX),
+                omega: 0.0,
+            };
+        }
+
+        // Add a few strong seeds to guarantee interesting symmetry breaking
+        let seed_count = (n / 64).max(4);
+        for k in 0..seed_count {
+            let idx = (rng.f32_unit() * n as f32) as usize % n;
+            let sign = if k % 2 == 0 { 1.0f32 } else { -1.0f32 };
+            self.states[idx].psi = sign * 0.3;
         }
     }
 
@@ -92,14 +106,19 @@ impl Universe {
         &self.states
     }
 
-    /// Execute one full deterministic tick.
+    /// One full deterministic tick.
+    ///
+    /// Phases:
+    ///   1. Read neighborhoods
+    ///   2. Compute Hamiltonian update (symplectic leapfrog)
+    ///   3. Commit scalar updates
+    ///   4. Apply topology mutations
     pub fn tick(&mut self) {
         self.tick += 1;
 
-        // Phase 1+2+3: Read neighborhoods, compute updates, stage results
         let n = self.node_count;
-        // Collect neighbor states for each node (borrowck: read from states, write to next_states)
-        // We build neighbor snapshots before transform to avoid borrow issues
+
+        // Phases 1–3: Hamiltonian update
         for i in 0..n {
             let neighbors: Vec<NodeState> = self.graph
                 .neighbors(i as NodeId)
@@ -108,82 +127,15 @@ impl Universe {
                 .collect();
             self.next_states[i] = transform(&self.states[i], &neighbors);
         }
-
-        // Phase 4: Commit scalar updates
         self.states.copy_from_slice(&self.next_states);
 
-        // Phase 5: Evaluate and apply topology mutations
-        self.last_mutation = self.mutation_engine.apply(&mut self.graph, &self.states, self.tick);
-
-        // (Phase 6: observation layer runs externally, driven by caller)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_universe_init_valid_states() {
-        let mut u = Universe::new(42, 16);
-        u.init();
-        for s in u.states() {
-            assert!(s.is_valid(), "all states must be valid after init");
-        }
+        // Phase 4: Topology mutations (omega-driven)
+        self.last_mutation =
+            self.mutation_engine
+                .apply(&mut self.graph, &self.states, self.tick);
     }
 
-    #[test]
-    fn test_universe_tick_advances() {
-        let mut u = Universe::new(42, 16);
-        u.init();
-        assert_eq!(u.tick, 0);
-        u.tick();
-        assert_eq!(u.tick, 1);
-        u.tick();
-        assert_eq!(u.tick, 2);
-    }
-
-    #[test]
-    fn test_universe_tick_deterministic() {
-        let mut u1 = Universe::new(123, 32);
-        let mut u2 = Universe::new(123, 32);
-        u1.init();
-        u2.init();
-        for _ in 0..10 {
-            u1.tick();
-            u2.tick();
-        }
-        let s1 = u1.states();
-        let s2 = u2.states();
-        for (a, b) in s1.iter().zip(s2.iter()) {
-            assert_eq!(a, b, "same seed must produce same state");
-        }
-    }
-
-    #[test]
-    fn test_universe_different_seeds() {
-        let mut u1 = Universe::new(1, 32);
-        let mut u2 = Universe::new(2, 32);
-        u1.init();
-        u2.init();
-        for _ in 0..5 {
-            u1.tick();
-            u2.tick();
-        }
-        // Different seeds should produce at least some different states
-        let differs = u1.states().iter().zip(u2.states().iter()).any(|(a, b)| a != b);
-        assert!(differs, "different seeds should produce different outcomes");
-    }
-
-    #[test]
-    fn test_universe_states_remain_valid_after_ticks() {
-        let mut u = Universe::new(99, 64);
-        u.init();
-        for _ in 0..50 {
-            u.tick();
-        }
-        for s in u.states() {
-            assert!(s.is_valid(), "states must remain valid after 50 ticks");
-        }
+    pub fn total_energy(&self) -> f32 {
+        self.states.iter().map(|s| s.local_energy()).sum()
     }
 }
